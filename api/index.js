@@ -1,4 +1,5 @@
 const { createClient } = require('@libsql/client/web');
+const { senhaConfere, DESAFIO } = require('../lib/senha');
 
 let _client = null;
 let _init = false;
@@ -54,15 +55,16 @@ function gid() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 }
 
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
-
 module.exports = async function handler(req, res) {
-  cors(res);
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  // Repete a checagem do middleware.js: se ele nao rodar, os dados seguem trancados.
+  if (!senhaConfere(req.headers.authorization, process.env.PEDIDOS_SENHA)) {
+    res.setHeader('WWW-Authenticate', DESAFIO);
+    return res.status(401).json({ error: 'Senha necessaria' });
+  }
+  // Mudanca de dado so vale vinda do proprio painel: outro site nao usa a senha guardada no navegador.
+  const site = req.headers['sec-fetch-site'];
+  if (req.method !== 'GET' && site && site !== 'same-origin') return res.status(403).json({ error: 'Origem nao permitida' });
+  res.setHeader('Cache-Control', 'no-store');
 
   const u = req.url || '/';
   const b = req.body || {};
@@ -191,7 +193,7 @@ module.exports = async function handler(req, res) {
     // IMPORT
     if (u.startsWith('/api/import') && req.method === 'POST') {
       const { clients, orders } = b;
-      if (!clients || !orders) return res.status(400).json({ error: 'Dados invalidos' });
+      if (!Array.isArray(clients) || !Array.isArray(orders) || !clients.length) return res.status(400).json({ error: 'Dados invalidos' }); // lista vazia apagaria o banco inteiro
       const st = [{ sql: 'DELETE FROM orders', args: [] }, { sql: 'DELETE FROM clients', args: [] }];
       for (const c of clients) st.push({ sql: 'INSERT INTO clients(id,name,phone,recurrence,created_at)VALUES(?,?,?,?,?)', args: [c.id, c.name, c.phone || '', c.recurrence || 'mensal', c.created_at || new Date().toISOString()] });
       for (const o of orders) st.push({ sql: 'INSERT INTO orders(id,client_name,date,value,obs,status,created_at)VALUES(?,?,?,?,?,?,?)', args: [o.id, o.client_name || o.clientName, o.date, o.value, o.obs || '', normStatus(o.status), o.created_at || new Date().toISOString()] });
