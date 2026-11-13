@@ -632,7 +632,7 @@ async function refreshData(){[_clients,_orders]=await Promise.all([api('/clients
 function toast(msg,type='ok'){
   const w=document.getElementById('toastWrap');
   const ic={ok:'✅',err:'⚠️',warn:'⚠️',info:'ℹ️'}[type]||'';
-  const t=document.createElement('div');t.className='toast '+type;t.innerHTML=`<span>${ic}</span><span>${msg}</span>`;
+  const t=document.createElement('div');t.className='toast '+type;t.innerHTML=`<span>${ic}</span><span></span>`;t.lastChild.textContent=msg;
   w.appendChild(t);
   setTimeout(()=>{t.classList.add('hide');setTimeout(()=>t.remove(),300);},3200);
 }
@@ -681,10 +681,12 @@ function refreshAll(){
 
 /* ---------- Helpers ---------- */
 function fmtBRL(v){return (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
-function fmtDate(ds){if(!ds||ds==='-')return '-';const p=(ds||'').split('T')[0].split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:ds;}
+function fmtDate(ds){if(!ds||ds==='-')return '-';const p=(ds||'').split('T')[0].split('-');return esc(p.length===3?`${p[2]}/${p[1]}/${p[0]}`:ds);}
 function monthName(i){return['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][i];}
 function monthFull(i){return['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][i];}
 function curMonth(){const n=new Date();return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;}
+// dentro de onclick="..." o navegador desfaz o &#39; antes de rodar o JS: la vai jsq, que gera string de JS
+function jsq(s){return esc(JSON.stringify(s==null?'':String(s)));}
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function ordersOf(name){return _orders.filter(o=>(o.client_name||'').toLowerCase()===name.toLowerCase());}
 function st(o){return o.status||'pendente';}
@@ -840,16 +842,16 @@ function renderOrders(){
   const tb=document.getElementById('ordersBody');
   if(!all.length){tb.innerHTML='<tr><td colspan="6"><div class="empty"><div class="ic">📋</div><h3>Nenhum pedido encontrado</h3><p>Ajuste os filtros ou registre um novo pedido</p></div></td></tr>';document.getElementById('ordersPager').innerHTML='';return;}
   tb.innerHTML=slice.map(o=>`<tr>
-    <td class="cell-name link" onclick="openClientByName('${esc(o.client_name)}')">${esc(o.client_name)}</td>
+    <td class="cell-name link" onclick="openClientByName(${jsq(o.client_name)})">${esc(o.client_name)}</td>
     <td class="muted">${fmtDate(o.date)}</td>
     <td class="cell-val">${fmtBRL(o.value)}</td>
-    <td><select class="status-sel s-${st(o)}" onchange="changeStatus('${o.id}',this.value)">
+    <td><select class="status-sel s-${st(o)}" onchange="changeStatus(${jsq(o.id)},this.value)">
       ${['pendente','entregue','pago'].map(s=>`<option value="${s}" ${st(o)===s?'selected':''}>${STATUS[s].e} ${STATUS[s].l}</option>`).join('')}
     </select></td>
     <td class="muted">${esc(o.obs)||'-'}</td>
     <td><div class="row-actions">
-      <button class="btn-icon" title="Editar" onclick="openEditOrder('${o.id}')">✏️</button>
-      <button class="btn-icon danger" title="Excluir" onclick="deleteOrder('${o.id}')">🗑️</button>
+      <button class="btn-icon" title="Editar" onclick="openEditOrder(${jsq(o.id)})">✏️</button>
+      <button class="btn-icon danger" title="Excluir" onclick="deleteOrder(${jsq(o.id)})">🗑️</button>
     </div></td></tr>`).join('');
   renderPager(all.length,pages);
   syncSortArrows('data-sort',ordersSort);
@@ -963,17 +965,17 @@ function renderClients(){
   const tb=document.getElementById('clientsBody');
   if(!list.length){tb.innerHTML='<tr><td colspan="8"><div class="empty"><div class="ic">👥</div><h3>Nenhum cliente encontrado</h3></div></td></tr>';return;}
   tb.innerHTML=list.map(({c,count,total,last,orders})=>`<tr>
-    <td class="cell-name link" onclick="openClientModal('${c.id}')">${esc(c.name)}</td>
+    <td class="cell-name link" onclick="openClientModal(${jsq(c.id)})">${esc(c.name)}</td>
     <td class="muted">${esc(c.phone)||'-'}</td>
-    <td><span class="badge b-info">${c.recurrence}</span></td>
+    <td><span class="badge b-info">${esc(c.recurrence)}</span></td>
     <td>${count}</td>
     <td class="cell-val">${fmtBRL(total)}</td>
     <td class="muted">${last?fmtDate(last.date):'-'}</td>
     <td>${recStatusBadge(c,orders)}</td>
     <td><div class="row-actions">
-      ${c.phone?`<button class="btn-icon" title="WhatsApp" onclick="sendWa('${esc(c.phone)}','${esc(c.name)}')">💬</button>`:''}
-      <button class="btn-icon" title="Editar" onclick="openEditClient('${c.id}')">✏️</button>
-      <button class="btn-icon danger" title="Excluir" onclick="deleteClient('${c.id}')">🗑️</button>
+      ${c.phone?`<button class="btn-icon" title="WhatsApp" onclick="sendWa(${jsq(c.phone)},${jsq(c.name)})">💬</button>`:''}
+      <button class="btn-icon" title="Editar" onclick="openEditClient(${jsq(c.id)})">✏️</button>
+      <button class="btn-icon danger" title="Excluir" onclick="deleteClient(${jsq(c.id)})">🗑️</button>
     </div></td></tr>`).join('');
   syncSortArrows('data-csort',clientsSort);
 }
@@ -1026,12 +1028,12 @@ function renderRecurrence(){
     else if(isWithinRec(c.recurrence,last,y,m)){l='⏳ Na recorrência';cls='b-amber';ok++;}
     else{l='❌ Não pediu';cls='b-red';no++;}
     return `<tr>
-      <td class="cell-name link" onclick="openClientModal('${c.id}')">${esc(c.name)}</td>
-      <td><span class="badge b-info">${c.recurrence}</span></td>
+      <td class="cell-name link" onclick="openClientModal(${jsq(c.id)})">${esc(c.name)}</td>
+      <td><span class="badge b-info">${esc(c.recurrence)}</span></td>
       <td class="muted">${last?fmtDate(last.date):'Nunca'}</td>
       <td><span class="badge ${cls}">${l}</span></td>
       <td class="cell-val">${fmtBRL(mt)}</td>
-      <td>${!mo.length&&c.phone?`<button class="btn btn-wa btn-sm" onclick="sendWa('${esc(c.phone)}','${esc(c.name)}')">💬 Lembrar</button>`:'<span class="faint">-</span>'}</td></tr>`;
+      <td>${!mo.length&&c.phone?`<button class="btn btn-wa btn-sm" onclick="sendWa(${jsq(c.phone)},${jsq(c.name)})">💬 Lembrar</button>`:'<span class="faint">-</span>'}</td></tr>`;
   });
   document.getElementById('recStats').innerHTML=`
     <div class="stat teal"><div class="k">Total c/ recorrência</div><div class="v">${rc.length}</div></div>
@@ -1076,13 +1078,13 @@ function renderRetention(){
     return `<div class="ret-card ${r.urg}">
       <div class="ret-days"><div class="n">${r.over}</div><div class="l">dias de<br>atraso</div></div>
       <div class="ret-info">
-        <div class="nm" onclick="openClientModal('${c.id}')">${esc(c.name)}</div>
-        <div class="ret-meta"><span>📱 ${esc(c.phone)||'Sem telefone'}</span><span>🔄 ${c.recurrence} (${r.rd}d)</span><span>📦 ${r.count} pedido(s)</span><span>💰 ${fmtBRL(r.total)}</span></div>
+        <div class="nm" onclick="openClientModal(${jsq(c.id)})">${esc(c.name)}</div>
+        <div class="ret-meta"><span>📱 ${esc(c.phone)||'Sem telefone'}</span><span>🔄 ${esc(c.recurrence)} (${r.rd}d)</span><span>📦 ${r.count} pedido(s)</span><span>💰 ${fmtBRL(r.total)}</span></div>
         <div class="ret-meta"><span>📅 Último: ${r.lastDate?fmtDate(r.last.date):'Nunca pediu'}</span><span><b>${lbl}</b></span></div>
         <div class="progress"><i style="width:${pct}%;background:${col}"></i></div>
       </div>
-      <div class="ret-actions">${c.phone?`<button class="btn btn-wa btn-sm" onclick="sendWa('${esc(c.phone)}','${esc(c.name)}')">💬 WhatsApp</button>`:''}
-        <button class="btn btn-ghost btn-sm" onclick="openClientModal('${c.id}')">📋 Histórico</button></div>
+      <div class="ret-actions">${c.phone?`<button class="btn btn-wa btn-sm" onclick="sendWa(${jsq(c.phone)},${jsq(c.name)})">💬 WhatsApp</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="openClientModal(${jsq(c.id)})">📋 Histórico</button></div>
     </div>`;
   }).join('');
 }
@@ -1097,7 +1099,7 @@ function openClientByName(name){const c=_clients.find(x=>x.name.toLowerCase()===
 function openClientModal(id){
   const c=_clients.find(x=>x.id===id);if(!c)return;
   document.getElementById('mClientName').textContent='👤 '+c.name;
-  document.getElementById('mClientInfo').innerHTML=`<span>📱 <b>${esc(c.phone)||'Não informado'}</b></span><span>🔄 <b>${c.recurrence}</b></span><span>📅 Desde <b>${fmtDate((c.created_at||'').split('T')[0])}</b></span>`;
+  document.getElementById('mClientInfo').innerHTML=`<span>📱 <b>${esc(c.phone)||'Não informado'}</b></span><span>🔄 <b>${esc(c.recurrence)}</b></span><span>📅 Desde <b>${fmtDate((c.created_at||'').split('T')[0])}</b></span>`;
   const co=ordersOf(c.name).sort((a,b)=>new Date(b.date)-new Date(a.date));
   const tl=document.getElementById('mTimeline');
   if(!co.length){tl.innerHTML='<div class="empty"><div class="ic">📦</div><p>Nenhum pedido registrado</p></div>';}
@@ -1128,7 +1130,7 @@ function insertVar(v){
 }
 function renderMsgPreview(){
   const raw=document.getElementById('waMsg')?.value||getWaMsg();
-  document.getElementById('msgPreview').innerHTML=resolveMsg(raw,'Maria','(11) 99999-0000','mensal','05/03/2026').replace(/\n/g,'<br>');
+  document.getElementById('msgPreview').innerHTML=esc(resolveMsg(raw,'Maria','(11) 99999-0000','mensal','05/03/2026')).replace(/\n/g,'<br>');
 }
 function resolveMsg(t,name,phone,rec,last){
   return t.replace(/\{nome\}/gi,name||'').replace(/\{telefone\}/gi,phone||'').replace(/\{recorrencia\}/gi,rec||'').replace(/\{ultimo_pedido\}/gi,last||'Nunca');
